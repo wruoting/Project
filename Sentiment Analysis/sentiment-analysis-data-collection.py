@@ -12,29 +12,39 @@ from nltk.sentiment.vader import SentimentIntensityAnalyzer as SIA
 # :: (by /u/)
 
 # Add your username below
-hdr = {'User-Agent': 'windows:r/politics.single.result:v1.0' +
-       '(by /u/arrowshaft)'}
-url = 'https://www.reddit.com/r/politics/.json'
-req = requests.get(url, headers=hdr)
-json_data = json.loads(req.text)
 
-posts = json.dumps(json_data['data']['children'], indent=4, sort_keys=True)
+subreddits = ['politics','news','USNEWS','worldnews','truenews']
 
-#this scrapes the data
-data_all = json_data['data']['children']
-num_of_posts = 0
-while len(data_all) <= 300:
-    time.sleep(2)
-    last = data_all[-1]['data']['name']
-    url = 'https://www.reddit.com/r/politics/.json?after=' + str(last)
-    req = requests.get(url, headers=hdr)
-    data = json.loads(req.text)
-    data_all += data['data']['children']
-    if num_of_posts == len(data_all):
-        break
-    else:
-        num_of_posts = len(data_all)
+def subreddit_search(subreddits):
+    data_all = []
+    for subreddit in subreddits:
+        print("Taking posts from r/" +subreddit)
+        hdr = {'User-Agent': 'windows:r/'+subreddit+'.single.result:v1.0' +
+               '(by /u/arrowshaft)'}
+        url = 'https://www.reddit.com/r/'+subreddit+'/.json'
+        req = requests.get(url, headers=hdr)
+        json_data = json.loads(req.text)
+        posts = json.dumps(json_data['data']['children'], indent=4, sort_keys=True)
+        #this scrapes the data
+        data_sub = json_data['data']['children']
 
+        num_of_posts = 0
+        while len(data_sub) <= 100:
+            print("Number of headlines from r/"+subreddit+" : "+str(len(data_sub)))
+            time.sleep(2)
+            last = data_sub[-1]['data']['name']
+            url = 'https://www.reddit.com/r/'+subreddit+'/.json?after=' + str(last)
+            req = requests.get(url, headers=hdr)
+            data = json.loads(req.text)
+            data_sub += data['data']['children']
+            if num_of_posts == len(data_sub):
+                break
+            else:
+                num_of_posts = len(data_sub)
+        data_all += data_sub
+    return data_all
+
+data_all = subreddit_search(subreddits)
 sia = SIA()
 positive_list = []
 negative_list = []

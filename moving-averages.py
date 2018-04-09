@@ -7,7 +7,7 @@ import matplotlib.dates as mdates
 import math
 
 #Tickers we will be analyzing
-tickers = ['AAPL', 'MSFT','SPY']
+tickers = ['AAPL','MSFT','SPY']
 column_headers = ['date','open','high','low','close','volume']
 datasource = 'iex'
 
@@ -31,6 +31,8 @@ for ticker in tickers:
     else:
         #join faster than concat
         ticker_table = ticker_table.join(date_column[ticker])
+
+#ticker_table.to_csv('tickers.csv',sep='\t', encoding='utf-8')
 
 # Calculate the 20 and 100 days moving averages of the closing prices
 short_rolling_ticker_of_interest = ticker_table.rolling(window=20).mean()
