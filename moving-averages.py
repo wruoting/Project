@@ -7,7 +7,7 @@ import matplotlib.dates as mdates
 import math
 
 #Tickers we will be analyzing
-tickers = ['AAPL','MSFT','SPY']
+tickers = ['AAPL','MSFT','SPY','OMER']
 column_headers = ['date','open','high','low','close','volume']
 datasource = 'iex'
 
@@ -66,8 +66,8 @@ _SMA2_day_simple_moving_average = ticker_table.rolling(window=SMA2).mean()
 
 # Calculate the 20 and 100 days exponential moving averages of the closing prices
 # Lag is calculated as M/2
-N1 = 20
-N2 = 26
+N1 = 50
+N2 = 200
 _N1_day_exponential_moving_average = ticker_table.ewm(ignore_na = False,span = N1,min_periods = N1,adjust = True).mean()
 _N2_day_exponential_moving_average = ticker_table.ewm(ignore_na = False,span = N2,min_periods = N2,adjust = True).mean()
 
@@ -89,17 +89,15 @@ portfolio_log_returns = pd.Series(np.diag(log_returns_weighted_dot_product), ind
  #this is a first order taylor expansion of x= log(p(t))/log(p(t-1)) when x ~= 1
 total_relative_returns = (np.exp(portfolio_log_returns.cumsum()) - 1)
 
-
 #exact return
 exact_relative_return = np.exp(log_returns)-1
 exact_log_returns_weighted = weights_matrix * exact_relative_return
 exact_total_relative_returns = exact_log_returns_weighted.cumsum().sum(axis=1)
-print(exact_total_relative_returns[-1])
-print(ticker_table)
+
 
 # The last data point will give us the total portfolio return
 # This could give us NaN if we don't do it correctly
-total_portfolio_return = total_relative_returns[-1]
+total_portfolio_return = exact_total_relative_returns[-1]
 if math.isnan(total_portfolio_return):
     print("Warning: The most current day does not have data.")
 
@@ -111,10 +109,69 @@ print('Total portfolio return is: ' +
       '{:5.2f}'.format(100 * total_portfolio_return) + '%')
 print('Average yearly return is: ' +
       '{:5.2f}'.format(100 * average_yearly_return) + '%')
+
+#To compare to N Day SMA
+#truncate for the sake of comparing to 200 day moving average
+N_day_SMA_returns_matrix = exact_log_returns_weighted[200:]
+N_day_SMA_total_relative = N_day_SMA_returns_matrix.cumsum().sum(axis=1)
+
+# The last data point will give us the total portfolio return
+# This could give us NaN if we don't do it correctly
+total_portfolio_return = N_day_SMA_total_relative[-1]
+if math.isnan(total_portfolio_return):
+    print("Warning: The most current day does not have data.")
+
+print("For 200 Day SMA comparison")
+# Average portfolio return assuming compunding of returns
+number_of_years = float(end_date.year) - float(start_date.split('-',1)[0])
+average_yearly_return = (1 + total_portfolio_return)**(1 / number_of_years) - 1
+#Print total portfolio return
+print('Total portfolio return is: ' +
+      '{:5.2f}'.format(100 * total_portfolio_return) + '%')
+print('Average yearly return is: ' +
+      '{:5.2f}'.format(100 * average_yearly_return) + '%')
+
+
+################################################################################################
+#Strategy of SMAs
+#difference of timeseries
+#timeseries_difference_sma = ticker_table - _SMA1_day_simple_moving_average
+timeseries_difference_sma = _SMA1_day_simple_moving_average-_SMA2_day_simple_moving_average
+SMA_weights_product = pd.DataFrame(weights_matrix.values*timeseries_difference_sma.apply(np.sign).values,columns=weights_matrix.columns,index=weights_matrix.index)
+SMA_trading_positions_final = SMA_weights_product.shift(1)
+
+
+SMA_relative_returns = np.exp(log_returns) - 1
+SMA_trading_impact = SMA_relative_returns * SMA_trading_positions_final
+SMA_relative_returns_cumsum = SMA_trading_impact.cumsum().sum(axis = 1)
+
+total_portfolio_return = SMA_relative_returns_cumsum[-1]
+if math.isnan(total_portfolio_return):
+    print("Warning: The most current day does not have data.")
+
+
+# Average portfolio return assuming compunding of returns
+number_of_years = float(end_date.year) - float(start_date.split('-',1)[0])
+average_yearly_return = (1 + total_portfolio_return)**(1 / number_of_years) - 1
+#Print total portfolio return
+print('SMA:')
+print('Total portfolio return is: ' +
+      '{:5.2f}'.format(100 * total_portfolio_return) + '%')
+print('Average yearly return is: ' +
+      '{:5.2f}'.format(100 * average_yearly_return) + '%')
+#portfolio log returns given an exposure
+# fig = plt.figure(figsize=[16,9])
+# ax = fig.add_subplot(1,1,1)
+# ax.plot(pd.to_datetime(total_relative_returns.index), SMA_relative_returns_cumsum * 100)
+# ax.set_ylabel('Portfolio total relative returns (%)')
+# ax.grid()
+#plt.show()
+
 ################################################################################################
 #Strategy of EMAs
 #difference of timeseries
-timeseries_difference_ema = ticker_table - _N1_day_exponential_moving_average
+#timeseries_difference_ema = ticker_table - _N1_day_exponential_moving_average
+timeseries_difference_ema = _N1_day_exponential_moving_average - _N2_day_exponential_moving_average
 
 #if EMA crosses price at time t, we will invert our strategy
 EMA_weights_product = pd.DataFrame(weights_matrix.values*timeseries_difference_ema.apply(np.sign).values,columns=weights_matrix.columns,index=weights_matrix.index)
@@ -145,38 +202,20 @@ if math.isnan(total_portfolio_return):
 number_of_years = float(end_date.year) - float(start_date.split('-',1)[0])
 average_yearly_return = (1 + total_portfolio_return)**(1 / number_of_years) - 1
 #Print total portfolio return
+print('EMA:')
 print('Total portfolio return is: ' +
       '{:5.2f}'.format(100 * total_portfolio_return) + '%')
 print('Average yearly return is: ' +
       '{:5.2f}'.format(100 * average_yearly_return) + '%')
-
+# fig = plt.figure(figsize=[16,9])
+# ax = fig.add_subplot(1,1,1)
+# ax.plot(pd.to_datetime(total_relative_returns.index), EMA_relative_returns_cumsum * 100)
+# ax.set_ylabel('Portfolio total relative returns (%)')
+# ax.grid()
+# plt.show()
 
 ################################################################################################
 #Plots
-
-#EMA
-fig = plt.figure(figsize=[16,9])
-ax = fig.add_subplot(1,1,1)
-ax.plot(pd.to_datetime(_N1_day_exponential_moving_average[stock_of_interest].index),ticker_table[stock_of_interest],label=stock_of_interest)
-ax.plot(pd.to_datetime(_N1_day_exponential_moving_average[stock_of_interest].index), _N1_day_exponential_moving_average[stock_of_interest], label= 'EMA ' + str(N1) +' days rolling')
-ax.plot(pd.to_datetime(_N2_day_exponential_moving_average[stock_of_interest].index), _N2_day_exponential_moving_average[stock_of_interest], label='EMA '+ str(N2) +' days rolling')
-ax.set_xlabel('Date')
-ax.set_ylabel('Adjusted closing price ($)')
-ax.legend()
-#plt.show()
-
-
-#SMA
-fig = plt.figure(figsize=[16,9])
-ax = fig.add_subplot(1,1,1)
-ax.plot(pd.to_datetime(_SMA1_day_simple_moving_average[stock_of_interest].index),ticker_table[stock_of_interest],label=stock_of_interest)
-ax.plot(pd.to_datetime(_SMA1_day_simple_moving_average[stock_of_interest].index), _SMA1_day_simple_moving_average[stock_of_interest], label= 'SMA '+ str(SMA1)+' days rolling')
-ax.plot(pd.to_datetime(_SMA2_day_simple_moving_average[stock_of_interest].index), _SMA2_day_simple_moving_average[stock_of_interest], label='SMA '+str(SMA2)+' days rolling')
-ax.set_xlabel('Date')
-ax.set_ylabel('Adjusted closing price ($)')
-ax.legend()
-#plt.show()
-
 
 #portfolio log returns given an exposure
 fig = plt.figure(figsize=[16,9])
@@ -189,6 +228,43 @@ ax.plot(pd.to_datetime(total_relative_returns.index), 100 * total_relative_retur
 ax.set_ylabel('Portfolio total relative returns (%)')
 ax.grid()
 #plt.show()
+
+#EMA
+fig = plt.figure(figsize=[16,9])
+ax = fig.add_subplot(1,1,1)
+ax.plot(pd.to_datetime(_N1_day_exponential_moving_average[stock_of_interest].index),ticker_table[stock_of_interest],label=stock_of_interest)
+ax.plot(pd.to_datetime(_N1_day_exponential_moving_average[stock_of_interest].index), _N1_day_exponential_moving_average[stock_of_interest], label= 'EMA ' + str(N1) +' days rolling')
+ax.plot(pd.to_datetime(_N2_day_exponential_moving_average[stock_of_interest].index), _N2_day_exponential_moving_average[stock_of_interest], label='EMA '+ str(N2) +' days rolling')
+ax.set_xlabel('Date')
+ax.set_ylabel('Closing price ($)')
+ax.legend()
+#plt.show()
+
+
+#SMA
+fig = plt.figure(figsize=[16,9])
+ax = fig.add_subplot(1,1,1)
+ax.plot(pd.to_datetime(_SMA1_day_simple_moving_average[stock_of_interest].index),ticker_table[stock_of_interest],label=stock_of_interest)
+ax.plot(pd.to_datetime(_SMA1_day_simple_moving_average[stock_of_interest].index), _SMA1_day_simple_moving_average[stock_of_interest], label= 'SMA '+ str(SMA1)+' days rolling')
+ax.plot(pd.to_datetime(_SMA2_day_simple_moving_average[stock_of_interest].index), _SMA2_day_simple_moving_average[stock_of_interest], label='SMA '+str(SMA2)+' days rolling')
+ax.set_xlabel('Date')
+ax.set_ylabel('Closing price ($)')
+ax.legend()
+#plt.show()
+
+#Overlay of both
+fig = plt.figure(figsize=[16,9])
+ax = fig.add_subplot(1,1,1)
+ax.plot(pd.to_datetime(_SMA1_day_simple_moving_average[stock_of_interest].index),ticker_table[stock_of_interest],label=stock_of_interest)
+ax.plot(pd.to_datetime(_N1_day_exponential_moving_average[stock_of_interest].index), _N1_day_exponential_moving_average[stock_of_interest], label= 'EMA ' + str(N1) +' days rolling')
+ax.plot(pd.to_datetime(_N2_day_exponential_moving_average[stock_of_interest].index), _N2_day_exponential_moving_average[stock_of_interest], label='EMA '+ str(N2) +' days rolling')
+ax.plot(pd.to_datetime(_SMA1_day_simple_moving_average[stock_of_interest].index), _SMA1_day_simple_moving_average[stock_of_interest], label= 'SMA '+ str(SMA1)+' days rolling')
+ax.plot(pd.to_datetime(_SMA2_day_simple_moving_average[stock_of_interest].index), _SMA2_day_simple_moving_average[stock_of_interest], label='SMA '+str(SMA2)+' days rolling')
+ax.set_xlabel('Date')
+ax.set_ylabel('Adjusted closing price ($)')
+ax.legend()
+#plt.show()
+
 
 
 # Plot everything by leveraging the very powerful matplotlib package
